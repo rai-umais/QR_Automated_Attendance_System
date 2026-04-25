@@ -1,0 +1,21 @@
+<!--This is a kind of INhertence in html, that tells the file to inherit the base.html-->
+{% extends 'base.html' %} 
+
+<!--It tells to cange the title to 'Home' -->
+{% block title %}Home{% endblock %}
+
+<!--It tells to keep the structure same but the context will be the following:...-->
+{% block content %}
+<div class="center-card">
+    <h1>QR Attendance System</h1>
+    <p>Select your role to continue</p>
+    <div class="btn-group">
+        <a href="{{ url_for('auth.teacher_login') }}" class="btn btn-primary">
+            Login as Teacher
+        </a>
+        <a href="{{ url_for('auth.student_login') }}" class="btn btn-secondary">
+            Login as Student
+        </a>
+    </div>
+</div>
+{% endblock %}

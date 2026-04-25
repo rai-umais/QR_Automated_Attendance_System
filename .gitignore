@@ -1,0 +1,17 @@
+.env
+SRE_Proj/
+.vscode/
+__pycache__/
+*.pyc
+venv/
+env/
+models/__pycache__/
+routes/__pycache__/
+*.db
+Thumbs.db
+*.sqlite3
+.DS_Store
+*.pyo
+*.pyd
+client ID.txt
+client*.txt

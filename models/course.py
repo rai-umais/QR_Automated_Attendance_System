@@ -1,0 +1,28 @@
+import uuid
+from models.base import db
+
+# Association table between Course and Student
+
+# One student has many courses and
+# One course has many students
+# so we can not ad them in single table,
+
+course_student = db.Table('Course_Student',
+                          db.Column('course_id',db.String(36) ,db.ForeignKey('Courses.id'), primary_key = True),
+                        db.Column('student_id', db.String(36), db.ForeignKey('Students.id') , primary_key = True))
+
+
+class Course(db.Model):
+    __tablename__ = 'Courses'
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    code = db.Column(db.String(20), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    teacher_id = db.Column(db.String(36), db.ForeignKey('Teachers.id'), nullable = False)
+
+    # to get a student record, go and check the course_student table; this is what secondary tells
+    students   = db.relationship('Student', secondary=course_student, backref='courses', lazy=True)
+    sessions   = db.relationship('Session', backref='course', lazy=True)
+
+    def __repr__(self):
+        return f'<Course {self.code}>'

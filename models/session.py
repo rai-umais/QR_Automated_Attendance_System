@@ -1,0 +1,23 @@
+import uuid
+from datetime import datetime,UTC
+from models.base import db
+
+class Session(db.Model):
+    __tablename__ = 'Sessions'
+
+    id             = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    course_id      = db.Column(db.String(36), db.ForeignKey('Courses.id'), nullable=False)
+    teacher_id     = db.Column(db.String(36), db.ForeignKey('Teachers.id'), nullable=False)
+    date           = db.Column(db.Date, nullable=False, default=datetime.now(UTC))
+    started_at     = db.Column(db.DateTime, default=datetime.now(UTC))
+    finalized_at   = db.Column(db.DateTime, nullable=True)
+    status         = db.Column(db.String(10), default='open')  # Either 'open' or 'closed'
+
+    temp_records   = db.relationship('TempAttendance', backref='session', lazy=True)
+    final_records  = db.relationship('Attendance', backref='session', lazy=True)
+
+    def __repr__(self):
+        return f'<Session {self.id} [{self.status}]>'
+    
+
+    

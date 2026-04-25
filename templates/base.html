@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Attendance System{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+    <nav>
+        <span class="nav-brand">QR Attendance</span>
+        <div class="nav-links">
+            <!--Jinja2 can pass the 'session' without being passed manually by render template as parameter
+            so we can now acess session.XYZ --> 
+            {% if session.user_id %}
+                <span>{{ session.user_name }}</span>
+                <a href="{{ url_for('auth.logout') }}">Logout</a>
+            {% endif %}
+        </div>
+    </nav>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
