@@ -46,7 +46,9 @@ def student_login():
 def callback():
     token = oauth.google.authorize_access_token()
     user_info = token.get('userinfo')
-
+    print("\n" + "="*50)
+    print("GOOGLE RETURNED EMAIL:", user_info['email'])
+    print("="*50 + "\n")
     if not user_info:
         return jsonify({'error': 'OAuth tokenization failed'}), 400
 
