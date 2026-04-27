@@ -2,7 +2,81 @@
 {% block title %}Mark Attendance{% endblock %}
 {% block content %}
 <div class="center-card">
-    <h2>Welcome, {{ name }}</h2>
-    <p>Scan page coming on Day 3.</p>
+    {% if error %}
+        <div style="font-size:40px">⚠️</div>
+        <h2 style="margin-top:12px">Invalid QR</h2>
+        <p style="color:#e53e3e;margin-top:8px">{{ error }}</p>
+        <p style="color:#888;font-size:13px;margin-top:12px">
+            Please scan the QR code on the projector again.
+        </p>
+
+    {% elif not logged_in %}
+        <div style="font-size:40px">👋</div>
+        <h2 style="margin-top:12px">Sign in to mark attendance</h2>
+        <p style="margin-top:8px">Use your university Google account</p>
+        <a href="{{ url_for('auth.student_login') }}"
+           class="btn btn-primary"
+           style="margin-top:20px;display:block">
+            Sign in with Google
+        </a>
+        <p style="color:#aaa;font-size:12px;margin-top:16px">
+            Your QR token is saved — signing in won't lose your scan.
+        </p>
+
+    {% else %}
+        <div style="font-size:40px">✋</div>
+        <h2 style="margin-top:12px">Hi, {{ name }}!</h2>
+        <p style="margin-top:8px;color:#666">
+            Click below to mark your attendance
+        </p>
+
+        <button class="btn btn-primary"
+                style="margin-top:20px;width:100%"
+                id="submit-btn"
+                onclick="submitAttendance()">
+            Mark My Attendance
+        </button>
+
+        <p id="result-msg"
+           style="margin-top:16px;font-weight:500;font-size:14px"></p>
+    {% endif %}
 </div>
+
+<script src="{{ url_for('static', filename='js/fingerprint.js') }}"></script>
+<script>
+const TOKEN = "{{ token }}";
+
+async function submitAttendance() {
+    const btn = document.getElementById('submit-btn');
+    const msg = document.getElementById('result-msg');
+
+    btn.disabled    = true;
+    btn.textContent = 'Collecting fingerprint...';
+    msg.textContent = '';
+
+    const fingerprint = await getDeviceFingerprint();
+
+    btn.textContent = 'Marking attendance...';
+
+    const res = await fetch('/student/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({token: TOKEN, fingerprint: fingerprint})
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+        btn.style.display   = 'none';
+        msg.style.color     = '#16a34a';
+        msg.textContent     = '✅ ' + data.message;
+        document.querySelector('.center-card div').textContent = '🎉';
+    } else {
+        msg.style.color     = '#e53e3e';
+        msg.textContent     = '❌ ' + data.error;
+        btn.disabled        = false;
+        btn.textContent     = 'Mark My Attendance';
+    }
+}
+</script>
 {% endblock %}

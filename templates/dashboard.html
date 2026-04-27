@@ -1,8 +1,192 @@
 {% extends 'base.html' %}
 {% block title %}Teacher Dashboard{% endblock %}
 {% block content %}
-<div class="center-card">
-    <h2>Welcome, {{ name }}</h2>
-    <p>Dashboard coming on Day 3.</p>
+
+<div style="max-width:960px;margin:0 auto;padding:24px">
+
+    <!-- header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px">
+        <div>
+            <h2 style="font-size:22px;font-weight:600">Welcome, {{ name }}</h2>
+            <p style="color:#888;font-size:13px;margin-top:4px">Teacher Dashboard</p>
+        </div>
+        <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary">Logout</a>
+    </div>
+
+    <!-- course selector -->
+    <div style="background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:24px;margin-bottom:24px">
+        <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">Start Attendance</h3>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+            <select id="course-select" class="input">
+                <option value="">-- Select a course --</option>
+                {% for course in courses %}
+                <option value="{{ course.id }}">
+                    {{ course.code }} — {{ course.name }}
+                </option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-primary" onclick="startSession()">
+                Start Attendance
+            </button>
+        </div>
+    </div>
+
+    <!-- QR + live panel (hidden until session starts) -->
+    <div id="attendance-section" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+
+            <!-- QR panel -->
+            <div style="background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:24px;text-align:center">
+                <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">
+                    Live QR Code
+                </h3>
+                <img id="qr-image" src="" alt="QR Code"
+                     style="width:260px;height:260px;border-radius:8px;border:1px solid #e5e5e5"/>
+                <p id="qr-status"
+                   style="color:#aaa;font-size:12px;margin-top:10px">
+                    Generating...
+                </p>
+                <p style="color:#888;font-size:12px;margin-top:6px">
+                    🔄 Refreshes every 5 seconds
+                </p>
+            </div>
+
+            <!-- live students panel -->
+            <div style="background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:24px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                    <h3 style="font-size:15px;font-weight:600">
+                        Live Attendance
+                        <span id="student-count"
+                              style="background:#4F46E5;color:#fff;font-size:11px;
+                                     padding:2px 8px;border-radius:10px;margin-left:8px">
+                            0
+                        </span>
+                    </h3>
+                    <button class="btn btn-primary" onclick="finalizeSession()"
+                            style="font-size:13px;padding:8px 16px">
+                        Finalize ✓
+                    </button>
+                </div>
+
+                <div id="student-cards"
+                     style="display:flex;flex-direction:column;gap:10px;
+                            max-height:400px;overflow-y:auto">
+                    <p id="empty-msg" style="color:#aaa;font-size:13px;text-align:center;
+                                             padding:40px 0">
+                        Waiting for students to scan...
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
 </div>
+
+<script src="{{ url_for('static', filename='js/qr_refresh.js') }}"></script>
+<script>
+let activeCourseId = null;
+let pollInterval   = null;
+
+function startSession() {
+    activeCourseId = document.getElementById('course-select').value;
+    if (!activeCourseId) {
+        alert('Please select a course first.');
+        return;
+    }
+
+    fetch('/teacher/start-session', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({course_id: activeCourseId})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.error) { alert(data.error); return; }
+        document.getElementById('attendance-section').style.display = 'block';
+        startQRRefresh(activeCourseId);
+        startPollingStudents();
+    });
+}
+
+function startPollingStudents() {
+    pollStudents();
+    pollInterval = setInterval(pollStudents, 3000);
+}
+
+function pollStudents() {
+    fetch(`/teacher/live-students?course_id=${activeCourseId}`)
+    .then(res => res.json())
+    .then(data => {
+        const container = document.getElementById('student-cards');
+        const emptyMsg  = document.getElementById('empty-msg');
+        const count     = document.getElementById('student-count');
+
+        count.textContent = data.students.length;
+
+        if (data.students.length === 0) {
+            emptyMsg.style.display = 'block';
+            return;
+        }
+
+        emptyMsg.style.display = 'none';
+        container.innerHTML = '';
+
+        data.students.forEach(s => {
+            container.innerHTML += `
+            <div style="position:relative;display:flex;align-items:center;
+                        justify-content:space-between;background:#f9f9f9;
+                        border:1px solid #e5e5e5;border-radius:8px;
+                        padding:12px 14px">
+                <button onclick="removeStudent('${s.id}')"
+                    title="Remove (proxy suspect)"
+                    style="position:absolute;top:-7px;left:-7px;
+                           width:22px;height:22px;background:#e53e3e;
+                           color:white;border:none;border-radius:50%;
+                           cursor:pointer;font-size:13px;font-weight:600;
+                           line-height:1;display:flex;align-items:center;
+                           justify-content:center">
+                    ✕
+                </button>
+                <div>
+                    <div style="font-weight:500;font-size:14px">${s.name}</div>
+                    <div style="font-size:12px;color:#888">${s.roll_number}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                    <span style="font-size:12px;color:#aaa">${s.scanned_at}</span>
+                    <span style="color:#16a34a;font-weight:700;font-size:16px">P</span>
+                </div>
+            </div>`;
+        });
+    });
+}
+
+function removeStudent(recordId) {
+    if (!confirm('Remove this student? (marks as proxy suspect)')) return;
+    fetch('/teacher/remove-student', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({record_id: recordId})
+    })
+    .then(res => res.json())
+    .then(() => pollStudents());
+}
+
+function finalizeSession() {
+    if (!confirm('Finalize attendance? Absent students will be marked A.')) return;
+    fetch('/session/finalize', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({course_id: activeCourseId})
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert(data.message || data.error);
+        if (data.message) {
+            clearInterval(pollInterval);
+            document.getElementById('attendance-section').style.display = 'none';
+            document.getElementById('course-select').value = '';
+        }
+    });
+}
+</script>
 {% endblock %}

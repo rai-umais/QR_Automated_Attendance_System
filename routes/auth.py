@@ -30,9 +30,6 @@ def teacher_login():
 def student_login():
     session['oauth_role'] = 'Student'  # store role in session first
     redirect_uri = url_for('auth.callback', _external=True)  # clean URI, no role param
-    print("\n" + "="*60)
-    print("EXACT URI SENT TO GOOGLE:", redirect_uri)
-    print("="*60 + "\n")
     return oauth.google.authorize_redirect(redirect_uri)
 
 
