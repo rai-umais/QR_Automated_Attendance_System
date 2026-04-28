@@ -3,7 +3,6 @@ SRE_Proj/
 .vscode/
 __pycache__/
 *.pyc
-*.pyo
 venv/
 env/
 models/__pycache__/
