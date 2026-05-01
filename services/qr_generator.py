@@ -14,7 +14,7 @@ def get_base_url():
 def generate_qr_token(session_id):
     payload = {
         'session_id': session_id,
-        'exp': datetime.now(timezone.utc) + timedelta(seconds=5),
+        'exp': datetime.now(timezone.utc) + timedelta(seconds=15), # ← 15 seconds
         'iat': datetime.now(timezone.utc)
     }
     token = jwt.encode(

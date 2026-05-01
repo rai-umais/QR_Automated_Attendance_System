@@ -24,6 +24,8 @@ def init_oauth(app):
 def teacher_login():
     session['oauth_role'] = 'Teacher'  # store role in session first
     redirect_uri = url_for('auth.callback', _external=True)  # clean URI, no role param
+    print("EXACT REDIRECT URI:", redirect_uri)
+
     return oauth.google.authorize_redirect(redirect_uri)
 
 @auth_bp.route('/login/student')

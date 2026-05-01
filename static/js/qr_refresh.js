@@ -1,6 +1,8 @@
 function startQRRefresh(courseId) {
     const qrImage  = document.getElementById('qr-image');
     const qrStatus = document.getElementById('qr-status');
+    let countdown  = 15;
+    let countdownInterval = null;
 
     function fetchQR() {
         fetch(`/teacher/get-qr?course_id=${courseId}`)
@@ -8,8 +10,20 @@ function startQRRefresh(courseId) {
             .then(data => {
                 if (data.qr_image) {
                     qrImage.src = 'data:image/png;base64,' + data.qr_image;
-                    qrStatus.textContent = 'Refreshed at ' +
-                        new Date().toLocaleTimeString();
+                    
+                    // reset countdown
+                    countdown = 15;
+                    clearInterval(countdownInterval);
+                    
+                    // start countdown display
+                    countdownInterval = setInterval(() => {
+                        countdown--;
+                        qrStatus.textContent = 
+                            `Next QR in ${countdown}s`;
+                        if (countdown <= 0) {
+                            clearInterval(countdownInterval);
+                        }
+                    }, 1000);
                 } else {
                     qrStatus.textContent = data.error || 'Waiting...';
                 }
@@ -20,5 +34,5 @@ function startQRRefresh(courseId) {
     }
 
     fetchQR();
-    setInterval(fetchQR, 5000);
+    setInterval(fetchQR, 15000); // ← exactly 15 seconds
 }
