@@ -12,7 +12,7 @@ function startQRRefresh(courseId) {
                     qrImage.src = 'data:image/png;base64,' + data.qr_image;
                     
                     // reset countdown
-                    countdown = 15;
+                    countdown = 30;
                     clearInterval(countdownInterval);
                     
                     // start countdown display
@@ -34,5 +34,5 @@ function startQRRefresh(courseId) {
     }
 
     fetchQR();
-    setInterval(fetchQR, 15000); // ← exactly 15 seconds
+    setInterval(fetchQR, 30000); // ← exactly 15 seconds
 }
