@@ -2,22 +2,25 @@
 {% block title %}Teacher Dashboard{% endblock %}
 {% block content %}
 
-<div style="max-width:960px;margin:0 auto;padding:24px">
+<div class="dashboard">
 
     <!-- header -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px">
+    <div class="dashboard-header">
         <div>
-            <h2 style="font-size:22px;font-weight:600">Welcome, {{ name }}</h2>
-            <p style="color:#888;font-size:13px;margin-top:4px">Teacher Dashboard</p>
+            <p class="dashboard-greeting">Teacher Dashboard</p>
+            <h2 class="dashboard-title">Welcome, {{ name }}</h2>
         </div>
-        <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary">Logout</a>
+        <a href="{{ url_for('auth.logout') }}" class="btn-secondary">Logout</a>
     </div>
 
     <!-- course selector -->
-    <div style="background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:24px;margin-bottom:24px">
-        <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">Start Attendance</h3>
-        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-            <select id="course-select" class="input">
+    <div class="card mb-24">
+        <h3 class="card-title">
+            <div class="card-title-icon icon-purple">📚</div>
+            Start Attendance
+        </h3>
+        <div class="session-row">
+            <select id="course-select" class="select-input">
                 <option value="">-- Select a course --</option>
                 {% for course in courses %}
                 <option value="{{ course.id }}">
@@ -25,56 +28,55 @@
                 </option>
                 {% endfor %}
             </select>
-            <button class="btn btn-primary" onclick="startSession()">
+            <button class="btn-primary" onclick="startSession()">
                 Start Attendance
             </button>
         </div>
     </div>
 
     <!-- QR + live panel (hidden until session starts) -->
-    <div id="attendance-section" style="display:none">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+    <div id="attendance-section" style="display:none" class="mt-24">
+        <div class="qr-section">
 
             <!-- QR panel -->
-            <div style="background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:24px;text-align:center">
-                <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">
+            <div class="qr-card">
+                <h3 class="card-title" style="justify-content:center">
+                    <div class="card-title-icon icon-amber">📱</div>
                     Live QR Code
                 </h3>
-                <img id="qr-image" src="" alt="QR Code"
-                     style="width:260px;height:260px;border-radius:8px;border:1px solid #e5e5e5"/>
-                <p id="qr-status"
-                   style="color:#aaa;font-size:12px;margin-top:10px">
-                    Generating...
-                </p>
-                <p style="color:#888;font-size:12px;margin-top:6px">
-                    🔄 Refreshes every 10 seconds
-                </p>
+                <div class="qr-wrapper mt-16">
+                    <img id="qr-image" src="" alt="QR Code" class="qr-image"/>
+                    <div class="qr-countdown-ring"></div>
+                </div>
+                <p id="qr-status" class="qr-status">Generating...</p>
+                <div class="qr-countdown">
+                    <div class="countdown-bar"><div class="countdown-fill" id="countdown-fill"></div></div>
+                    <span>Refreshes 10s</span>
+                </div>
             </div>
 
             <!-- live students panel -->
-            <div style="background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:24px">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                    <h3 style="font-size:15px;font-weight:600">
+            <div class="live-panel">
+                <div class="live-panel-header">
+                    <h3 class="live-panel-title">
+                        <div class="card-title-icon icon-green">
+                            <div class="live-dot"></div>
+                        </div>
                         Live Attendance
-                        <span id="student-count"
-                              style="background:#4F46E5;color:#fff;font-size:11px;
-                                     padding:2px 8px;border-radius:10px;margin-left:8px">
-                            0
-                        </span>
                     </h3>
-                    <button class="btn btn-primary" onclick="finalizeSession()"
-                            style="font-size:13px;padding:8px 16px">
-                        Finalize ✓
-                    </button>
+                    <div style="display:flex;align-items:center;gap:12px">
+                        <span id="student-count" class="count-badge">0</span>
+                        <button class="btn-primary text-small" onclick="finalizeSession()" style="padding:6px 12px">
+                            Finalize ✓
+                        </button>
+                    </div>
                 </div>
 
-                <div id="student-cards"
-                     style="display:flex;flex-direction:column;gap:10px;
-                            max-height:400px;overflow-y:auto">
-                    <p id="empty-msg" style="color:#aaa;font-size:13px;text-align:center;
-                                             padding:40px 0">
-                        Waiting for students to scan...
-                    </p>
+                <div class="live-panel-body" id="student-cards">
+                    <div class="empty-state" id="empty-msg">
+                        <div class="empty-state-icon">📡</div>
+                        <div class="empty-state-text">Waiting for students to scan...</div>
+                    </div>
                 </div>
             </div>
 
@@ -133,27 +135,16 @@ function pollStudents() {
 
         data.students.forEach(s => {
             container.innerHTML += `
-            <div style="position:relative;display:flex;align-items:center;
-                        justify-content:space-between;background:#f9f9f9;
-                        border:1px solid #e5e5e5;border-radius:8px;
-                        padding:12px 14px">
-                <button onclick="removeStudent('${s.id}')"
-                    title="Remove (proxy suspect)"
-                    style="position:absolute;top:-7px;left:-7px;
-                           width:22px;height:22px;background:#e53e3e;
-                           color:white;border:none;border-radius:50%;
-                           cursor:pointer;font-size:13px;font-weight:600;
-                           line-height:1;display:flex;align-items:center;
-                           justify-content:center">
-                    ✕
-                </button>
-                <div>
-                    <div style="font-weight:500;font-size:14px">${s.name}</div>
-                    <div style="font-size:12px;color:#888">${s.roll_number}</div>
+            <div class="student-card">
+                <button class="remove-btn" onclick="removeStudent('${s.id}')" title="Remove (proxy suspect)">✕</button>
+                <div class="student-avatar">${s.name.charAt(0).toUpperCase()}</div>
+                <div class="student-info">
+                    <div class="student-name">${s.name}</div>
+                    <div class="student-roll">${s.roll_number}</div>
                 </div>
-                <div style="display:flex;align-items:center;gap:10px">
-                    <span style="font-size:12px;color:#aaa">${s.scanned_at}</span>
-                    <span style="color:#16a34a;font-weight:700;font-size:16px">P</span>
+                <div class="student-meta">
+                    <span class="student-time">${s.scanned_at}</span>
+                    <div class="status-p">P</div>
                 </div>
             </div>`;
         });

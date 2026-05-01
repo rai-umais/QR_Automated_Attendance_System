@@ -3,23 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Attendance System{% endblock %}</title>
+    <title>{% block title %}Flexidance{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
 <body>
-    <nav>
-        <span class="nav-brand">QR Attendance</span>
-        <div class="nav-links">
-            <!--Jinja2 can pass the 'session' without being passed manually by render template as parameter
-            so we can now acess session.XYZ --> 
+    {% block body %}
+    <nav class="nav">
+        <div class="nav-brand">
+            <span class="nav-logo">FX</span>
+            <span class="nav-name">Flexidance</span>
+        </div>
+        <div class="nav-right">
             {% if session.user_id %}
-                <span>{{ session.user_name }}</span>
-                <a href="{{ url_for('auth.logout') }}">Logout</a>
+                <span class="nav-user">{{ session.user_name }}</span>
+                <a href="{{ url_for('auth.logout') }}" class="nav-logout">Sign out</a>
             {% endif %}
         </div>
     </nav>
-    <main>
+    <main class="main-content">
         {% block content %}{% endblock %}
     </main>
+    {% endblock %}
 </body>
 </html>
