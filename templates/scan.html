@@ -4,81 +4,80 @@
 <div class="scan-page">
     <div class="scan-card">
         {% if error %}
-            <div class="scan-icon-wrap scan-icon-error">⚠️</div>
-            <h2 class="scan-title">Invalid QR</h2>
-            <p class="text-small mt-8" style="color:var(--danger)">{{ error }}</p>
-            <p class="scan-sub mt-16">
-                Please scan the QR code on the projector again.
-            </p>
+        <div class="scan-icon-wrap scan-icon-error">⚠️</div>
+        <h2 class="scan-title">Invalid QR</h2>
+        <p class="text-small mt-8" style="color:var(--danger)">{{ error }}</p>
+        <p class="scan-sub mt-16">
+            Please scan the QR code on the projector again.
+        </p>
 
         {% elif not logged_in %}
-            <div class="scan-icon-wrap scan-icon-auth">👋</div>
-            <h2 class="scan-title">Sign in to mark attendance</h2>
-            <p class="scan-sub mt-8">Use your university Google account</p>
-            <a href="{{ url_for('auth.student_login') }}"
-               class="btn-primary w-full mt-24" style="justify-content:center">
-                Sign in with Google
-            </a>
-            <p class="text-hint text-small mt-16">
-                Your QR token is saved — signing in won't lose your scan.
-            </p>
+        <div class="scan-icon-wrap scan-icon-auth">👋</div>
+        <h2 class="scan-title">Sign in to mark attendance</h2>
+        <p class="scan-sub mt-8">Use your university Google account</p>
+        <a href="{{ url_for('auth.student_login', token=token) }}" class="btn-primary w-full mt-24"
+            style="justify-content:center">
+            Sign in with Google
+        </a>
+        <p class="text-hint text-small mt-16">
+            Your QR token is saved — signing in won't lose your scan.
+        </p>
 
         {% else %}
-            <div class="scan-icon-wrap scan-icon-success" id="scan-icon">✋</div>
-            <h2 class="scan-title">Hi, {{ name }}!</h2>
-            <p class="scan-sub mt-8">
-                Click below to mark your attendance
-            </p>
+        <div class="scan-icon-wrap scan-icon-success" id="scan-icon">✋</div>
+        <h2 class="scan-title">Hi, {{ name }}!</h2>
+        <p class="scan-sub mt-8">
+            Click below to mark your attendance
+        </p>
 
-            <button class="btn-primary w-full mt-24" style="justify-content:center"
-                    id="submit-btn"
-                    onclick="submitAttendance()">
-                Mark My Attendance
-            </button>
+        <button class="btn-primary w-full mt-24" style="justify-content:center" id="submit-btn"
+            onclick="submitAttendance()">
+            Mark My Attendance
+        </button>
 
-            <p id="result-msg" class="mt-16 text-small"></p>
+        <p id="result-msg" class="mt-16 text-small"></p>
         {% endif %}
     </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/fingerprint.js') }}"></script>
 <script>
-const TOKEN = "{{ token }}";
+    const TOKEN = "{{ token }}";
 
-async function submitAttendance() {
-    const btn = document.getElementById('submit-btn');
-    const msg = document.getElementById('result-msg');
-    const icon = document.getElementById('scan-icon');
+    async function submitAttendance() {
+        const btn = document.getElementById('submit-btn');
+        const msg = document.getElementById('result-msg');
+        const icon = document.getElementById('scan-icon');
 
-    btn.disabled    = true;
-    btn.textContent = 'Collecting fingerprint...';
-    msg.textContent = '';
-    msg.className   = 'mt-16 text-small';
-    msg.style.color = '';
+        btn.disabled = true;
+        btn.textContent = 'Collecting fingerprint...';
+        msg.textContent = '';
+        msg.className = 'mt-16 text-small';
+        msg.style.color = '';
 
-    const fingerprint = await getDeviceFingerprint();
+        const fingerprint = await getDeviceFingerprint();
 
-    btn.textContent = 'Marking attendance...';
+        btn.textContent = 'Marking attendance...';
 
-    const res = await fetch('/student/submit', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({token: TOKEN, fingerprint: fingerprint})
-    });
+        const res = await fetch('/student/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: TOKEN, fingerprint: fingerprint })
+        });
 
-    const data = await res.json();
+        const data = await res.json();
 
-    if (res.ok) {
-        btn.style.display   = 'none';
-        msg.className       = 'success-banner mt-16';
-        msg.textContent     = '✅ ' + data.message;
-        if(icon) icon.textContent = '🎉';
-    } else {
-        msg.style.color     = 'var(--danger)';
-        msg.textContent     = '❌ ' + data.error;
-        btn.disabled        = false;
-        btn.textContent     = 'Mark My Attendance';
+        if (res.ok) {
+            btn.style.display = 'none';
+            msg.className = 'success-banner mt-16';
+            msg.textContent = '✅ ' + data.message;
+            if (icon) icon.textContent = '🎉';
+        } else {
+            msg.style.color = 'var(--danger)';
+            msg.textContent = '❌ ' + data.error;
+            btn.disabled = false;
+            btn.textContent = 'Mark My Attendance';
+        }
     }
-}
 </script>
 {% endblock %}

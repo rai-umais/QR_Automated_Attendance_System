@@ -31,6 +31,10 @@ def teacher_login():
 @auth_bp.route('/login/student')
 def student_login():
     session['oauth_role'] = 'Student'  # store role in session first
+    # preserve the QR token so we can redirect back after OAuth
+    qr_token = request.args.get('token')
+    if qr_token:
+        session['qr_token'] = qr_token
     redirect_uri = url_for('auth.callback', _external=True)  # clean URI, no role param
     return oauth.google.authorize_redirect(redirect_uri)
 
@@ -75,6 +79,10 @@ def callback():
         session['user_id']   = user.id
         session['user_role'] = 'Student'
         session['user_name'] = user.name
+        # restore the QR token that was saved before OAuth redirect
+        qr_token = session.pop('qr_token', None)
+        if qr_token:
+            return redirect(url_for('student.scan_page', token=qr_token))
         return redirect(url_for('student.scan_page'))
     
     return jsonify({'error': 'Invalid role'}), 400

@@ -126,16 +126,22 @@ function pollStudents() {
         count.textContent = data.students.length;
 
         if (data.students.length === 0) {
-            emptyMsg.style.display = 'block';
+            // clear any student cards but keep the empty message
+            container.querySelectorAll('.student-card').forEach(el => el.remove());
+            if (emptyMsg) emptyMsg.style.display = 'block';
             return;
         }
 
-        emptyMsg.style.display = 'none';
-        container.innerHTML = '';
+        if (emptyMsg) emptyMsg.style.display = 'none';
+
+        // rebuild only the student cards
+        container.querySelectorAll('.student-card').forEach(el => el.remove());
 
         data.students.forEach(s => {
-            container.innerHTML += `
-            <div class="student-card">
+            const card = document.createElement('div');
+            card.className = 'student-card';
+            card.setAttribute('data-record-id', s.id);
+            card.innerHTML = `
                 <button class="remove-btn" onclick="removeStudent('${s.id}')" title="Remove (proxy suspect)">✕</button>
                 <div class="student-avatar">${s.name.charAt(0).toUpperCase()}</div>
                 <div class="student-info">
@@ -145,8 +151,8 @@ function pollStudents() {
                 <div class="student-meta">
                     <span class="student-time">${s.scanned_at}</span>
                     <div class="status-p">P</div>
-                </div>
-            </div>`;
+                </div>`;
+            container.appendChild(card);
         });
     });
 }
@@ -159,7 +165,29 @@ function removeStudent(recordId) {
         body: JSON.stringify({record_id: recordId})
     })
     .then(res => res.json())
-    .then(() => pollStudents());
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
+            return;
+        }
+        // immediately remove the card from the UI
+        const card = document.querySelector(`.student-card[data-record-id="${recordId}"]`);
+        if (card) card.remove();
+
+        // update count
+        const remaining = document.querySelectorAll('.student-card').length;
+        document.getElementById('student-count').textContent = remaining;
+
+        // show empty message if no students left
+        if (remaining === 0) {
+            const emptyMsg = document.getElementById('empty-msg');
+            if (emptyMsg) emptyMsg.style.display = 'block';
+        }
+    })
+    .catch(err => {
+        alert('Network error removing student.');
+        console.error(err);
+    });
 }
 
 function finalizeSession() {
@@ -171,12 +199,18 @@ function finalizeSession() {
     })
     .then(res => res.json())
     .then(data => {
-        alert(data.message || data.error);
-        if (data.message) {
-            clearInterval(pollInterval);
-            document.getElementById('attendance-section').style.display = 'none';
-            document.getElementById('course-select').value = '';
+        if (data.error) {
+            alert('Error: ' + data.error);
+            return;
         }
+        alert(data.message);
+        clearInterval(pollInterval);
+        // reload to return to a clean dashboard
+        window.location.reload();
+    })
+    .catch(err => {
+        alert('Network error finalizing session.');
+        console.error(err);
     });
 }
 </script>

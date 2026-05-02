@@ -1,7 +1,7 @@
 function startQRRefresh(courseId) {
     const qrImage  = document.getElementById('qr-image');
     const qrStatus = document.getElementById('qr-status');
-    let countdown  = 15;
+    let countdown  = 30;
     let countdownInterval = null;
 
     function fetchQR() {
@@ -34,5 +34,5 @@ function startQRRefresh(courseId) {
     }
 
     fetchQR();
-    setInterval(fetchQR, 30000); // ← exactly 15 seconds
+    setInterval(fetchQR, 30000); // ← exactly 30 seconds
 }
