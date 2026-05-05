@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, session, request, jsonify
 from models.base import db
 from models.course import Course
 from models.attendance import TempAttendance
-from services.session_manager import start_session, get_active_session
+from services.session_manager import start_session, get_active_session, get_teacher_active_session
 from services.qr_generator import generate_qr_token, generate_qr_image
 from routes.decorators import teacher_required
 
@@ -22,12 +22,34 @@ def start_attendance_session():
     course_id = request.json.get('course_id')
     if not course_id:
         return jsonify({'error': 'course_id is required'}), 400
+
+    # Block if teacher already has an open session (any course)
+    existing = get_teacher_active_session(session['user_id'])
+    if existing and str(existing.course_id) != str(course_id):
+        return jsonify({
+            'error': 'You already have an active session. '
+                     'Please finalize it before starting a new one.'
+        }), 409
+
     active = start_session(course_id, session['user_id'])
     return jsonify({
         'session_id': active.id,
         'status': active.status,
         'message': 'Session started'
     })
+
+@teacher_bp.route('/check-active-session')
+@teacher_required
+def check_active_session():
+    """Returns info about any currently open session for this teacher."""
+    existing = get_teacher_active_session(session['user_id'])
+    if existing:
+        return jsonify({
+            'active': True,
+            'course_id': existing.course_id,
+            'session_id': existing.id
+        })
+    return jsonify({'active': False})
 
 @teacher_bp.route('/get-qr')
 @teacher_required

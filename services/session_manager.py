@@ -27,6 +27,13 @@ def get_active_session(course_id):
         status='open'
     ).first()
 
+def get_teacher_active_session(teacher_id):
+    """Return any open session for this teacher, regardless of course."""
+    return Session.query.filter_by(
+        teacher_id=teacher_id,
+        status='open'
+    ).first()
+
 def close_session(session_id):
     s = db.session.get(Session, session_id)
     if s:

@@ -28,7 +28,7 @@
                 </option>
                 {% endfor %}
             </select>
-            <button class="btn-primary" onclick="startSession()">
+            <button id="start-btn" class="btn-primary" onclick="startSession()">
                 Start Attendance
             </button>
         </div>
@@ -86,9 +86,49 @@
 
 <script src="{{ url_for('static', filename='js/qr_refresh.js') }}"></script>
 <script>
-let activeCourseId = null;
-let pollInterval   = null;
+let activeCourseId  = null;
+let pollInterval    = null;
+let qrRefreshHandle = null;
 
+/* ── lock / unlock the "Start Attendance" controls ── */
+function lockControls(courseId) {
+    const select = document.getElementById('course-select');
+    const btn    = document.getElementById('start-btn');
+
+    select.value    = courseId;
+    select.disabled = true;
+    btn.disabled    = true;
+    btn.textContent = 'Session Active';
+    btn.classList.add('btn-disabled');
+}
+
+function unlockControls() {
+    const select = document.getElementById('course-select');
+    const btn    = document.getElementById('start-btn');
+
+    select.disabled = false;
+    btn.disabled    = false;
+    btn.textContent = 'Start Attendance';
+    btn.classList.remove('btn-disabled');
+}
+
+/* ── on page load: restore UI if a session is already running ── */
+document.addEventListener('DOMContentLoaded', () => {
+    fetch('/teacher/check-active-session')
+        .then(res => res.json())
+        .then(data => {
+            if (data.active) {
+                activeCourseId = String(data.course_id);
+                document.getElementById('attendance-section').style.display = 'block';
+                lockControls(activeCourseId);
+                startQRRefresh(activeCourseId);
+                startPollingStudents();
+            }
+        })
+        .catch(() => {});   // silent — dashboard still usable
+});
+
+/* ── start a new session ── */
 function startSession() {
     activeCourseId = document.getElementById('course-select').value;
     if (!activeCourseId) {
@@ -105,11 +145,13 @@ function startSession() {
     .then(data => {
         if (data.error) { alert(data.error); return; }
         document.getElementById('attendance-section').style.display = 'block';
+        lockControls(activeCourseId);
         startQRRefresh(activeCourseId);
         startPollingStudents();
     });
 }
 
+/* ── student polling ── */
 function startPollingStudents() {
     pollStudents();
     pollInterval = setInterval(pollStudents, 3000);
@@ -126,7 +168,6 @@ function pollStudents() {
         count.textContent = data.students.length;
 
         if (data.students.length === 0) {
-            // clear any student cards but keep the empty message
             container.querySelectorAll('.student-card').forEach(el => el.remove());
             if (emptyMsg) emptyMsg.style.display = 'block';
             return;
@@ -134,7 +175,6 @@ function pollStudents() {
 
         if (emptyMsg) emptyMsg.style.display = 'none';
 
-        // rebuild only the student cards
         container.querySelectorAll('.student-card').forEach(el => el.remove());
 
         data.students.forEach(s => {
@@ -157,6 +197,7 @@ function pollStudents() {
     });
 }
 
+/* ── remove student ── */
 function removeStudent(recordId) {
     if (!confirm('Remove this student? (marks as proxy suspect)')) return;
     fetch('/teacher/remove-student', {
@@ -170,15 +211,12 @@ function removeStudent(recordId) {
             alert('Error: ' + data.error);
             return;
         }
-        // immediately remove the card from the UI
         const card = document.querySelector(`.student-card[data-record-id="${recordId}"]`);
         if (card) card.remove();
 
-        // update count
         const remaining = document.querySelectorAll('.student-card').length;
         document.getElementById('student-count').textContent = remaining;
 
-        // show empty message if no students left
         if (remaining === 0) {
             const emptyMsg = document.getElementById('empty-msg');
             if (emptyMsg) emptyMsg.style.display = 'block';
@@ -190,6 +228,7 @@ function removeStudent(recordId) {
     });
 }
 
+/* ── finalize ── */
 function finalizeSession() {
     if (!confirm('Finalize attendance? Absent students will be marked A.')) return;
     fetch('/session/finalize', {
@@ -205,7 +244,7 @@ function finalizeSession() {
         }
         alert(data.message);
         clearInterval(pollInterval);
-        // reload to return to a clean dashboard
+        unlockControls();
         window.location.reload();
     })
     .catch(err => {
