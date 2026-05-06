@@ -1,8 +1,11 @@
 import os
+from datetime import datetime, UTC
 from flask import Blueprint, redirect, url_for, session, request, jsonify
 from models.base import db
 from models.teacher import Teacher
 from models.student import Student
+from models.session import Session
+from models.attendance import TempAttendance
 from authlib.integrations.flask_client import OAuth
 
 
@@ -89,5 +92,16 @@ def callback():
     
 @auth_bp.route('/logout')
 def logout():
+    # Ensure teacher signout does not leave open sessions behind.
+    user_role = session.get('user_role')
+    user_id = session.get('user_id')
+    if user_role == 'Teacher' and user_id:
+        open_sessions = Session.query.filter_by(teacher_id=user_id, status='open').all()
+        for s in open_sessions:
+            TempAttendance.query.filter_by(session_id=s.id).delete()
+            s.status = 'closed'
+            s.finalized_at = datetime.now(UTC)
     session.clear()
+    if user_role == 'Teacher' and user_id:
+        db.session.commit()
     return redirect(url_for('main.index'))

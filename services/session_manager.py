@@ -2,7 +2,7 @@ from datetime import datetime, UTC
 from models.base import db
 from models.session import Session
 
-def start_session(course_id, teacher_id):
+def start_session(course_id, teacher_id, mode='normal'):
     existing = Session.query.filter_by(
         course_id=course_id,
         status='open'
@@ -15,7 +15,8 @@ def start_session(course_id, teacher_id):
         teacher_id = teacher_id,
         date       = datetime.now(UTC).date(),
         started_at = datetime.now(UTC),
-        status     = 'open'
+        status     = 'open',
+        mode       = mode
     )
     db.session.add(new_session)
     db.session.commit()
