@@ -2,7 +2,7 @@ from datetime import datetime, UTC
 from models.base import db
 from models.session import Session
 
-def start_session(course_id, teacher_id, mode='normal'):
+def start_session(course_id, teacher_id, mode='normal', custom_seconds=None, master_xlsx_path=None):
     existing = Session.query.filter_by(
         course_id=course_id,
         status='open'
@@ -16,7 +16,9 @@ def start_session(course_id, teacher_id, mode='normal'):
         date       = datetime.now(UTC).date(),
         started_at = datetime.now(UTC),
         status     = 'open',
-        mode       = mode
+        mode       = mode,
+        custom_seconds = custom_seconds,
+        master_xlsx_path = master_xlsx_path
     )
     db.session.add(new_session)
     db.session.commit()

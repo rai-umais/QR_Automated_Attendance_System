@@ -48,9 +48,13 @@ def finalize():
             )
             db.session.add(record)
 
-        # Update XLSX (best-effort: do not fail finalization if file is missing/invalid)
-        xlsx_path = os.path.join(os.getcwd(), "AttendanceSheet (8).xlsx")
-        xlsx_updated = export_attendance_to_xlsx(active.date, present_rolls, xlsx_path)
+        # Update XLSX using the file uploaded at the start of the session
+        xlsx_path = active.master_xlsx_path
+        if not xlsx_path or not os.path.exists(xlsx_path):
+             # Fallback to default if somehow missing
+             xlsx_path = os.path.join(os.getcwd(), "AttendanceSheet (8) (1).xlsx")
+        
+        xlsx_updated = export_attendance_to_xlsx(active.date, present_rolls, xlsx_path, enrolled_students)
 
         # delete temp records
         TempAttendance.query.filter_by(session_id=active.id).delete()
@@ -69,11 +73,9 @@ def finalize():
         response = {'message': message}
         if xlsx_updated:
             response['message'] = message + " Excel updated."
-            response['download_url'] = '/session/download-xlsx'
+            response['download_url'] = f'/session/download-xlsx/{active.id}'
         else:
-            response['warning'] = (
-                "Excel export skipped (attendance sheet missing or invalid .xlsx file)."
-            )
+            response['warning'] = "Excel export skipped."
         return jsonify(response)
 
     except Exception as e:
@@ -81,10 +83,15 @@ def finalize():
         print(f"Finalize error: {e}")
         return jsonify({'error': f'Finalization failed: {str(e)}'}), 500
 
-@session_bp.route('/download-xlsx')
+@session_bp.route('/download-xlsx/<session_id>')
 @teacher_required
-def download_xlsx():
-    xlsx_path = os.path.join(os.getcwd(), "AttendanceSheet (8).xlsx")
+def download_xlsx(session_id):
+    active = db.session.get(Session, session_id)
+    if not active or not active.master_xlsx_path:
+        return jsonify({'error': 'Attendance workbook not found for this session'}), 404
+        
+    xlsx_path = active.master_xlsx_path
     if not os.path.exists(xlsx_path):
-        return jsonify({'error': 'Attendance workbook not found on server'}), 404
-    return send_file(xlsx_path, as_attachment=True, download_name="Attendance_Updated.xlsx")
+        return jsonify({'error': 'Attendance file missing on server'}), 404
+        
+    return send_file(xlsx_path, as_attachment=True, download_name=f"Attendance_Report_{active.date}.xlsx")

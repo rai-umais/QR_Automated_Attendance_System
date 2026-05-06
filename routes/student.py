@@ -4,7 +4,7 @@ from models.base import db
 from models.student import Student
 from models.attendance import TempAttendance
 from services.qr_generator import verify_qr_token
-from services.anti_proxy import is_duplicate_student, is_duplicate_device
+from services.anti_proxy import is_duplicate_student
 from routes.decorators import student_required
 
 student_bp = Blueprint('student', __name__, url_prefix='/student')
@@ -30,7 +30,6 @@ def scan_page():
 def submit_attendance():
     data = request.json
     token = data.get('token')
-    device_fingerprint = data.get('fingerprint')
 
     payload = verify_qr_token(token)
     if not payload:
@@ -48,14 +47,11 @@ def submit_attendance():
     if is_duplicate_student(session_id, student_id):
         return jsonify({'error': 'You already marked your attendance.'}), 400
 
-    if is_duplicate_device(session_id, device_fingerprint):
-        return jsonify({'error': 'This device was already used.'}), 400
 
     record = TempAttendance(
         session_id=session_id,
         student_id=student_id,
-        scanned_at=datetime.now(UTC),
-        device_fingerprint=device_fingerprint
+        scanned_at=datetime.now(UTC)
     )
     db.session.add(record)
     db.session.commit()
