@@ -1160,4 +1160,7 @@ body {
     background: transparent; color: var(--accent); border: 1.5px solid var(--border-md);
     border-radius: var(--radius-md); font-family: var(--font-body); font-size: 14px;
     font-weight: 500; cursor: pointer;
-}
+}
+
+/* Hide number input spinners - REMOVED per user request to keep up/down arrows */
+

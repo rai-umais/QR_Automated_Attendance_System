@@ -26,7 +26,7 @@
     <div class="card mb-24">
         <h3 class="card-title">
             <div class="card-title-icon icon-green">📥</div>
-            Import Student Excel
+            Upload Master Attendance Sheet
         </h3>
         <p class="text-muted text-small mt-8">
             Upload an <code>.xlsx</code> file with columns like <code>roll number</code> and <code>name</code>.
@@ -49,16 +49,24 @@
         <div class="mode-selector" id="mode-selector-container">
             <span class="mode-label">QR Mode:</span>
             <label class="mode-option" id="lbl-normal">
-                <input type="radio" name="qr-mode" value="normal" checked>
+                <input type="radio" name="qr-mode" value="normal" checked onchange="document.getElementById('custom-sec-wrap').style.display='none'">
                 <span class="mode-pill">🌐 Normal <small>50s</small></span>
             </label>
             <label class="mode-option" id="lbl-strict">
-                <input type="radio" name="qr-mode" value="strict">
+                <input type="radio" name="qr-mode" value="strict" onchange="document.getElementById('custom-sec-wrap').style.display='none'">
                 <span class="mode-pill">🔒 Strict <small>30s</small></span>
             </label>
+            <label class="mode-option" id="lbl-custom">
+                <input type="radio" name="qr-mode" value="custom" onchange="document.getElementById('custom-sec-wrap').style.display='inline-flex'">
+                <span class="mode-pill">⚙️ Custom</span>
+            </label>
+            <div id="custom-sec-wrap" style="display:none; align-items:center; gap:4px;">
+                <input type="number" id="custom-seconds" class="no-spinner" style="width:70px; padding:8px 12px; background:var(--bg); border:1.5px solid var(--border-md); border-radius:var(--radius-md); font-family:var(--font-body); font-size:14px; color:var(--fg);" value="60" min="10" max="300">
+                <span class="text-small">sec</span>
+            </div>
         </div>
 
-        <div class="session-row">
+        <div class="session-row mt-16">
             <select id="course-select" class="select-input">
                 <option value="">-- Select a course --</option>
                 {% for course in courses %}
@@ -67,7 +75,10 @@
                 </option>
                 {% endfor %}
             </select>
-            <button id="start-btn" class="btn-primary" onclick="startSession()">
+        </div>
+        
+        <div class="session-row mt-16">
+            <button id="start-btn" class="btn-primary" onclick="startSession()" style="width:100%; justify-content:center">
                 Start Attendance
             </button>
         </div>
@@ -233,18 +244,42 @@
         activeCourseId = document.getElementById('course-select').value;
         const modeInput = document.querySelector('input[name="qr-mode"]:checked');
         const mode = modeInput ? modeInput.value : 'normal';
+        let customSeconds = null;
+        if (mode === 'custom') {
+            const input = document.getElementById('custom-seconds');
+            customSeconds = parseInt(input.value, 10);
+            if (isNaN(customSeconds) || customSeconds < 10) {
+                showPopup('error', 'Time Too Short', 'The minimum duration for a custom QR code is 10 seconds.');
+                return;
+            }
+            if (customSeconds > 300) {
+                showPopup('error', 'Time Too Long', 'The maximum duration for a custom QR code is 300 seconds (5 minutes).');
+                return;
+            }
+        }
 
-        console.log('Selected Course:', activeCourseId, 'Mode:', mode);
+        const masterFile = document.getElementById('excel-file').files[0];
+
+        console.log('Selected Course:', activeCourseId, 'Mode:', mode, 'Sec:', customSeconds);
 
         if (!activeCourseId) {
             showPopup('error', 'Select Course', 'Please select a course before starting.');
             return;
         }
+        if (!masterFile) {
+            showPopup('error', 'Select File', 'Please upload the master attendance sheet in the "Upload Master Attendance Sheet" section above before starting.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('course_id', activeCourseId);
+        formData.append('mode', mode);
+        if (customSeconds) formData.append('custom_seconds', customSeconds);
+        formData.append('master_file', masterFile);
 
         fetch('/teacher/start-session', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({course_id: activeCourseId, mode: mode})
+            body: formData
         })
         .then(res => {
             console.log('Start session response status:', res.status);
@@ -297,7 +332,6 @@
                 'Import Complete',
                 `${data.message} Rows: ${data.rows_read}, New: ${data.created}, Existing: ${data.skipped_existing}, Enrolled: ${data.enrolled_in_course}.`
             );
-            fileInput.value = '';
         })
         .catch(err => {
             showPopup('error', 'Import Failed', err.error || 'Failed to import Excel file.');

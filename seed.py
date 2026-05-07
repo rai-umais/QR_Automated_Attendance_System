@@ -3,10 +3,20 @@ from models.base import db
 from models import Teacher, Student, Course
 
 with app.app_context():
-    t2 = Teacher.query.filter_by(name='Dr. Rai',email='gokboruhan2@gmail.com').first()
+    t2 = Teacher.query.filter_by(name='Dr.VORTX',email='muazzamm024@gmail.com').first()
+    if not t2:
+        t2 = Teacher(name='Dr.VORTX', email='muazzamm024@gmail.com')
+        db.session.add(t2)
+        db.session.commit()
+        
     c3 = Course.query.filter_by(code='SE-2001', name='Software Requirement Engineering').first()
+    if not c3:
+        c3 = Course(code='SE-2001', name='Software Requirement Engineering', teacher_id=t2.id)
+        db.session.add(c3)
+        db.session.commit()
 
     students = [
+        Student(roll_number='l243063', name='Muhammad Muazzam Mahmood',    email='l243063@lhr.nu.edu.pk'),
         Student(roll_number='l240001', name='Muhammad Anas',    email='l240001@lhr.nu.edu.pk'),
         Student(roll_number='l243095', name='Arqam Hafeez',    email='l243095@lhr.nu.edu.pk'),
         Student(roll_number='l227998', name='Laiba Nadeem',    email='l227998@lhr.nu.edu.pk'),
@@ -36,11 +46,18 @@ with app.app_context():
         Student(roll_number='l243001', name='Romesha Afzaal',    email='l243001@lhr.nu.edu.pk'),
         Student(roll_number='l242549', name='Syed Saad Ali',    email='l242549@lhr.nu.edu.pk'),
         Student(roll_number='l243055', name='Sharjeel Shahid',    email='l243055@lhr.nu.edu.pk'),
-        Student(roll_number='l243038', name='Zunaira Tahir',    email='l243038@lhr.nu.edu.pk')
+        Student(roll_number='l243038', name='Zunaira Tahir',    email='l243038@lhr.nu.edu.pk'),
+        Student(roll_number='l243032', name='Rai Muhammad Umais Kharal',  email='l243032@lhr.nu.edu.pk'),
+        Student(roll_number='l243007', name='Muhammad Husnain Khan',   email='l243007@lhr.nu.edu.pk'),
     ]
     for s in students:
-        db.session.add(s)
-        c3.students.append(s)
+        existing = Student.query.filter_by(roll_number=s.roll_number).first()
+        if not existing:
+            db.session.add(s)
+            c3.students.append(s)
+        else:
+            if existing not in c3.students:
+                c3.students.append(existing)
 
     db.session.commit()
     print("Seed data inserted.")

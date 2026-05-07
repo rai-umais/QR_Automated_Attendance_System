@@ -53,7 +53,7 @@ def callback():
     print("GOOGLE RETURNED EMAIL:", user_info['email'])
     print("="*50 + "\n")
     if not user_info:
-        return jsonify({'error': 'OAuth tokenization failed'}), 400
+        return redirect(url_for('main.index', error='OAuth tokenization failed'))
 
     Email = user_info['email']
     sub = user_info['sub']
@@ -63,7 +63,7 @@ def callback():
     if role == 'Teacher':
         user = Teacher.query.filter_by(email=Email).first()
         if not user:
-            return jsonify({'error': 'You were not registered as a Teacher'}), 403
+            return redirect(url_for('main.index', error='You were not registered as a Teacher'))
         if not user.google_sub:
             user.google_sub = sub
             db.session.commit()
@@ -75,7 +75,7 @@ def callback():
     elif role == 'Student':
         user = Student.query.filter_by(email=Email).first()
         if not user:
-            return jsonify({'error': 'You are not a registered student'}), 403
+            return redirect(url_for('main.index', error='You are not a registered student'))
         if not user.google_sub:
             user.google_sub = sub
             db.session.commit()
@@ -88,7 +88,7 @@ def callback():
             return redirect(url_for('student.scan_page', token=qr_token))
         return redirect(url_for('student.scan_page'))
     
-    return jsonify({'error': 'Invalid role'}), 400
+    return redirect(url_for('main.index', error='Invalid role'))
     
 @auth_bp.route('/logout')
 def logout():
