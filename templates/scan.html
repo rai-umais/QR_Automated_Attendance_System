@@ -40,7 +40,7 @@
     </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/fingerprint.js') }}"></script>
+
 <script>
     const TOKEN = "{{ token }}";
 
@@ -50,19 +50,12 @@
         const icon = document.getElementById('scan-icon');
 
         btn.disabled = true;
-        btn.textContent = 'Collecting fingerprint...';
-        msg.textContent = '';
-        msg.className = 'mt-16 text-small';
-        msg.style.color = '';
-
-        const fingerprint = await getDeviceFingerprint();
-
         btn.textContent = 'Marking attendance...';
 
         const res = await fetch('/student/submit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: TOKEN, fingerprint: fingerprint })
+            body: JSON.stringify({ token: TOKEN })
         });
 
         const data = await res.json();

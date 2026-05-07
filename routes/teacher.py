@@ -1,9 +1,13 @@
 from flask import Blueprint, render_template, session, request, jsonify
+import os, uuid
+from sqlalchemy import func
 from models.base import db
 from models.course import Course
+from models.student import Student
 from models.attendance import TempAttendance
 from services.session_manager import start_session, get_active_session, get_teacher_active_session
 from services.qr_generator import generate_qr_token, generate_qr_image
+from services.xlsx_import import parse_students_from_xlsx
 from routes.decorators import teacher_required
 
 teacher_bp = Blueprint('teacher', __name__, url_prefix='/teacher')
@@ -19,9 +23,15 @@ def dashboard():
 @teacher_bp.route('/start-session', methods=['POST'])
 @teacher_required
 def start_attendance_session():
-    course_id = request.json.get('course_id')
+    course_id = request.form.get('course_id')
+    mode = request.form.get('mode', 'normal')
+    custom_seconds = request.form.get('custom_seconds')
+    master_file = request.files.get('master_file')
+    
     if not course_id:
         return jsonify({'error': 'course_id is required'}), 400
+    if not master_file:
+        return jsonify({'error': 'Master attendance sheet is required'}), 400
 
     # Block if teacher already has an open session (any course)
     existing = get_teacher_active_session(session['user_id'])
@@ -31,7 +41,20 @@ def start_attendance_session():
                      'Please finalize it before starting a new one.'
         }), 409
 
-    active = start_session(course_id, session['user_id'])
+    # Save the master file to a session-specific path
+    session_uuid = str(uuid.uuid4())
+    filename = f"master_{session_uuid}.xlsx"
+    upload_dir = os.path.join(os.getcwd(), 'session_data')
+    if not os.path.exists(upload_dir):
+        os.makedirs(upload_dir)
+    
+    master_path = os.path.join(upload_dir, filename)
+    master_file.save(master_path)
+
+    active = start_session(course_id, session['user_id'], 
+                           mode=mode, 
+                           custom_seconds=custom_seconds,
+                           master_xlsx_path=master_path)
     return jsonify({
         'session_id': active.id,
         'status': active.status,
@@ -47,7 +70,8 @@ def check_active_session():
         return jsonify({
             'active': True,
             'course_id': existing.course_id,
-            'session_id': existing.id
+            'session_id': existing.id,
+            'mode': existing.mode
         })
     return jsonify({'active': False})
 
@@ -60,9 +84,22 @@ def get_qr():
     active = get_active_session(course_id)
     if not active:
         return jsonify({'error': 'No active session'}), 404
-    token = generate_qr_token(active.id)
-    img_base64 = generate_qr_image(token)  # ← no base_url argument anymore
-    return jsonify({'qr_image': img_base64, 'session_id': active.id})
+    
+    # Determine expiry time based on mode
+    if active.mode == 'custom' and active.custom_seconds:
+        seconds = active.custom_seconds
+    elif active.mode == 'strict':
+        seconds = 30
+    else:
+        seconds = 50
+    
+    token = generate_qr_token(active.id, seconds=seconds)
+    img_base64 = generate_qr_image(token)
+    return jsonify({
+        'qr_image': img_base64, 
+        'session_id': active.id,
+        'seconds': seconds
+    })
 
 @teacher_bp.route('/live-students')
 @teacher_required
@@ -91,3 +128,63 @@ def remove_student():
     db.session.delete(record)
     db.session.commit()
     return jsonify({'message': 'Student removed'})
+
+
+@teacher_bp.route('/import-students', methods=['POST'])
+@teacher_required
+def import_students():
+    course_id = request.form.get('course_id')
+    file = request.files.get('excel_file')
+
+    if not course_id:
+        return jsonify({'error': 'course_id is required'}), 400
+    if not file:
+        return jsonify({'error': 'Excel file is required'}), 400
+    if not file.filename.lower().endswith('.xlsx'):
+        return jsonify({'error': 'Only .xlsx files are supported'}), 400
+
+    course = Course.query.filter_by(id=course_id, teacher_id=session['user_id']).first()
+    if not course:
+        return jsonify({'error': 'Course not found'}), 404
+
+    try:
+        parsed_students = parse_students_from_xlsx(file.read())
+    except Exception as exc:
+        return jsonify({'error': f'Failed to read Excel: {exc}'}), 400
+
+    created = 0
+    skipped_existing = 0
+    enrolled_now = 0
+
+    for parsed in parsed_students:
+        normalized_roll = parsed.roll_number.replace('-', '')
+        existing = Student.query.filter(
+            func.replace(Student.roll_number, '-', '') == normalized_roll,
+            func.lower(Student.name) == parsed.name.lower()
+        ).first()
+
+        if existing:
+            student = existing
+            skipped_existing += 1
+        else:
+            student = Student(
+                roll_number=parsed.roll_number,
+                name=parsed.name,
+                email=parsed.email
+            )
+            db.session.add(student)
+            created += 1
+
+        if student not in course.students:
+            course.students.append(student)
+            enrolled_now += 1
+
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Excel import completed.',
+        'rows_read': len(parsed_students),
+        'created': created,
+        'skipped_existing': skipped_existing,
+        'enrolled_in_course': enrolled_now
+    })

@@ -2,6 +2,16 @@
 {% block title %}Teacher Dashboard{% endblock %}
 {% block content %}
 
+<!-- Global Popup Overlay -->
+<div id="popup-overlay" class="popup-overlay" style="display:none">
+  <div class="popup-box">
+    <div class="popup-icon-wrap" id="popup-icon"></div>
+    <h3 class="popup-title" id="popup-title"></h3>
+    <p class="popup-msg" id="popup-msg"></p>
+    <div class="popup-actions" id="popup-actions"></div>
+  </div>
+</div>
+
 <div class="dashboard">
 
     <!-- header -->
@@ -13,13 +23,50 @@
         <a href="{{ url_for('auth.logout') }}" class="btn-secondary">Logout</a>
     </div>
 
+    <div class="card mb-24">
+        <h3 class="card-title">
+            <div class="card-title-icon icon-green">📥</div>
+            Upload Master Attendance Sheet
+        </h3>
+        <p class="text-muted text-small mt-8">
+            Upload an <code>.xlsx</code> file with columns like <code>roll number</code> and <code>name</code>.
+            Missing emails are auto-generated as <code>{roll_number}@lhr.nu.edu.pk</code>.
+        </p>
+        <div class="session-row mt-16">
+            <input id="excel-file" type="file" accept=".xlsx" class="select-input" />
+            <button id="import-btn" class="btn-secondary" onclick="importStudents()">Import Excel</button>
+        </div>
+    </div>
+
     <!-- course selector -->
     <div class="card mb-24">
         <h3 class="card-title">
             <div class="card-title-icon icon-purple">📚</div>
             Start Attendance
         </h3>
-        <div class="session-row">
+
+        <!-- Mode selector -->
+        <div class="mode-selector" id="mode-selector-container">
+            <span class="mode-label">QR Mode:</span>
+            <label class="mode-option" id="lbl-normal">
+                <input type="radio" name="qr-mode" value="normal" checked onchange="document.getElementById('custom-sec-wrap').style.display='none'">
+                <span class="mode-pill">🌐 Normal <small>50s</small></span>
+            </label>
+            <label class="mode-option" id="lbl-strict">
+                <input type="radio" name="qr-mode" value="strict" onchange="document.getElementById('custom-sec-wrap').style.display='none'">
+                <span class="mode-pill">🔒 Strict <small>30s</small></span>
+            </label>
+            <label class="mode-option" id="lbl-custom">
+                <input type="radio" name="qr-mode" value="custom" onchange="document.getElementById('custom-sec-wrap').style.display='inline-flex'">
+                <span class="mode-pill">⚙️ Custom</span>
+            </label>
+            <div id="custom-sec-wrap" style="display:none; align-items:center; gap:4px;">
+                <input type="number" id="custom-seconds" class="no-spinner" style="width:70px; padding:8px 12px; background:var(--bg); border:1.5px solid var(--border-md); border-radius:var(--radius-md); font-family:var(--font-body); font-size:14px; color:var(--fg);" value="60" min="10" max="300">
+                <span class="text-small">sec</span>
+            </div>
+        </div>
+
+        <div class="session-row mt-16">
             <select id="course-select" class="select-input">
                 <option value="">-- Select a course --</option>
                 {% for course in courses %}
@@ -28,7 +75,10 @@
                 </option>
                 {% endfor %}
             </select>
-            <button id="start-btn" class="btn-primary" onclick="startSession()">
+        </div>
+        
+        <div class="session-row mt-16">
+            <button id="start-btn" class="btn-primary" onclick="startSession()" style="width:100%; justify-content:center">
                 Start Attendance
             </button>
         </div>
@@ -45,13 +95,15 @@
                     Live QR Code
                 </h3>
                 <div class="qr-wrapper mt-16">
-                    <img id="qr-image" src="" alt="QR Code" class="qr-image"/>
+                    <img id="qr-image" src="" alt="QR Code" class="qr-image" />
                     <div class="qr-countdown-ring"></div>
                 </div>
                 <p id="qr-status" class="qr-status">Generating...</p>
                 <div class="qr-countdown">
-                    <div class="countdown-bar"><div class="countdown-fill" id="countdown-fill"></div></div>
-                    <span>Refreshes 10s</span>
+                    <div class="countdown-bar">
+                        <div class="countdown-fill" id="countdown-fill"></div>
+                    </div>
+                    <span id="refresh-label">Refreshes in 50s</span>
                 </div>
             </div>
 
@@ -86,171 +138,321 @@
 
 <script src="{{ url_for('static', filename='js/qr_refresh.js') }}"></script>
 <script>
-let activeCourseId  = null;
-let pollInterval    = null;
-let qrRefreshHandle = null;
+    let activeCourseId = null;
+    let pollInterval = null;
+    console.log('Dashboard script initialized');
 
-/* ── lock / unlock the "Start Attendance" controls ── */
-function lockControls(courseId) {
-    const select = document.getElementById('course-select');
-    const btn    = document.getElementById('start-btn');
+    /* ── Popup Logic ── */
+    function showPopup(type, title, msg, actions = null) {
+        const overlay = document.getElementById('popup-overlay');
+        const iconWrap = document.getElementById('popup-icon');
+        const titleEl = document.getElementById('popup-title');
+        const msgEl = document.getElementById('popup-msg');
+        const actionWrap = document.getElementById('popup-actions');
 
-    select.value    = courseId;
-    select.disabled = true;
-    btn.disabled    = true;
-    btn.textContent = 'Session Active';
-    btn.classList.add('btn-disabled');
-}
+        titleEl.textContent = title;
+        msgEl.textContent = msg;
+        actionWrap.innerHTML = '';
 
-function unlockControls() {
-    const select = document.getElementById('course-select');
-    const btn    = document.getElementById('start-btn');
+        if (type === 'success') iconWrap.textContent = '✅';
+        else if (type === 'error') iconWrap.textContent = '❌';
+        else iconWrap.textContent = 'ℹ️';
 
-    select.disabled = false;
-    btn.disabled    = false;
-    btn.textContent = 'Start Attendance';
-    btn.classList.remove('btn-disabled');
-}
+        if (actions) {
+            actionWrap.appendChild(actions);
+        } else {
+            const okBtn = document.createElement('button');
+            okBtn.className = 'popup-btn-ok';
+            okBtn.textContent = 'OK';
+            okBtn.onclick = hidePopup;
+            actionWrap.appendChild(okBtn);
+        }
 
-/* ── on page load: restore UI if a session is already running ── */
-document.addEventListener('DOMContentLoaded', () => {
-    fetch('/teacher/check-active-session')
-        .then(res => res.json())
-        .then(data => {
-            if (data.active) {
-                activeCourseId = String(data.course_id);
-                document.getElementById('attendance-section').style.display = 'block';
-                lockControls(activeCourseId);
-                startQRRefresh(activeCourseId);
-                startPollingStudents();
-            }
-        })
-        .catch(() => {});   // silent — dashboard still usable
-});
-
-/* ── start a new session ── */
-function startSession() {
-    activeCourseId = document.getElementById('course-select').value;
-    if (!activeCourseId) {
-        alert('Please select a course first.');
-        return;
+        overlay.style.display = 'flex';
     }
 
-    fetch('/teacher/start-session', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({course_id: activeCourseId})
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.error) { alert(data.error); return; }
-        document.getElementById('attendance-section').style.display = 'block';
-        lockControls(activeCourseId);
-        startQRRefresh(activeCourseId);
-        startPollingStudents();
-    });
-}
+    function showConfirm(title, msg) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('popup-overlay');
+            const iconWrap = document.getElementById('popup-icon');
+            const titleEl = document.getElementById('popup-title');
+            const msgEl = document.getElementById('popup-msg');
+            const actionWrap = document.getElementById('popup-actions');
 
-/* ── student polling ── */
-function startPollingStudents() {
-    pollStudents();
-    pollInterval = setInterval(pollStudents, 3000);
-}
+            titleEl.textContent = title;
+            msgEl.textContent = msg;
+            iconWrap.textContent = '❓';
+            actionWrap.innerHTML = '';
 
-function pollStudents() {
-    fetch(`/teacher/live-students?course_id=${activeCourseId}`)
-    .then(res => res.json())
-    .then(data => {
-        const container = document.getElementById('student-cards');
-        const emptyMsg  = document.getElementById('empty-msg');
-        const count     = document.getElementById('student-count');
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'popup-btn-cancel';
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.onclick = () => { hidePopup(); resolve(false); };
 
-        count.textContent = data.students.length;
+            const confirmBtn = document.createElement('button');
+            confirmBtn.className = 'popup-btn-ok';
+            confirmBtn.textContent = 'Confirm';
+            confirmBtn.onclick = () => { hidePopup(); resolve(true); };
 
-        if (data.students.length === 0) {
-            container.querySelectorAll('.student-card').forEach(el => el.remove());
-            if (emptyMsg) emptyMsg.style.display = 'block';
-            return;
-        }
-
-        if (emptyMsg) emptyMsg.style.display = 'none';
-
-        container.querySelectorAll('.student-card').forEach(el => el.remove());
-
-        data.students.forEach(s => {
-            const card = document.createElement('div');
-            card.className = 'student-card';
-            card.setAttribute('data-record-id', s.id);
-            card.innerHTML = `
-                <button class="remove-btn" onclick="removeStudent('${s.id}')" title="Remove (proxy suspect)">✕</button>
-                <div class="student-avatar">${s.name.charAt(0).toUpperCase()}</div>
-                <div class="student-info">
-                    <div class="student-name">${s.name}</div>
-                    <div class="student-roll">${s.roll_number}</div>
-                </div>
-                <div class="student-meta">
-                    <span class="student-time">${s.scanned_at}</span>
-                    <div class="status-p">P</div>
-                </div>`;
-            container.appendChild(card);
+            actionWrap.appendChild(cancelBtn);
+            actionWrap.appendChild(confirmBtn);
+            overlay.style.display = 'flex';
         });
-    });
-}
+    }
 
-/* ── remove student ── */
-function removeStudent(recordId) {
-    if (!confirm('Remove this student? (marks as proxy suspect)')) return;
-    fetch('/teacher/remove-student', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({record_id: recordId})
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.error) {
-            alert('Error: ' + data.error);
+    function hidePopup() {
+        document.getElementById('popup-overlay').style.display = 'none';
+    }
+
+    /* ── UI Management ── */
+    function lockControls(courseId, mode) {
+        const select = document.getElementById('course-select');
+        const btn = document.getElementById('start-btn');
+        const radios = document.querySelectorAll('input[name="qr-mode"]');
+
+        select.value = courseId;
+        select.disabled = true;
+        btn.disabled = true;
+        btn.textContent = 'Session Active';
+        btn.classList.add('btn-disabled');
+
+        radios.forEach(r => {
+            r.disabled = true;
+            if (r.value === mode) r.checked = true;
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('Dashboard loaded, checking for active session...');
+        fetch('/teacher/check-active-session')
+            .then(res => res.json())
+            .then(data => {
+                console.log('Active session check result:', data);
+                if (data.active) {
+                    activeCourseId = String(data.course_id);
+                    document.getElementById('attendance-section').style.display = 'block';
+                    lockControls(activeCourseId, data.mode);
+                    startQRRefresh(activeCourseId);
+                    startPollingStudents();
+                }
+            })
+            .catch(err => console.error('Error checking active session:', err));
+    });
+
+    function startSession() {
+        console.log('startSession triggered');
+        activeCourseId = document.getElementById('course-select').value;
+        const modeInput = document.querySelector('input[name="qr-mode"]:checked');
+        const mode = modeInput ? modeInput.value : 'normal';
+        let customSeconds = null;
+        if (mode === 'custom') {
+            const input = document.getElementById('custom-seconds');
+            customSeconds = parseInt(input.value, 10);
+            if (isNaN(customSeconds) || customSeconds < 10) {
+                showPopup('error', 'Time Too Short', 'The minimum duration for a custom QR code is 10 seconds.');
+                return;
+            }
+            if (customSeconds > 300) {
+                showPopup('error', 'Time Too Long', 'The maximum duration for a custom QR code is 300 seconds (5 minutes).');
+                return;
+            }
+        }
+
+        const masterFile = document.getElementById('excel-file').files[0];
+
+        console.log('Selected Course:', activeCourseId, 'Mode:', mode, 'Sec:', customSeconds);
+
+        if (!activeCourseId) {
+            showPopup('error', 'Select Course', 'Please select a course before starting.');
             return;
         }
-        const card = document.querySelector(`.student-card[data-record-id="${recordId}"]`);
-        if (card) card.remove();
+        if (!masterFile) {
+            showPopup('error', 'Select File', 'Please upload the master attendance sheet in the "Upload Master Attendance Sheet" section above before starting.');
+            return;
+        }
 
-        const remaining = document.querySelectorAll('.student-card').length;
-        document.getElementById('student-count').textContent = remaining;
+        const formData = new FormData();
+        formData.append('course_id', activeCourseId);
+        formData.append('mode', mode);
+        if (customSeconds) formData.append('custom_seconds', customSeconds);
+        formData.append('master_file', masterFile);
 
-        if (remaining === 0) {
+        fetch('/teacher/start-session', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => {
+            console.log('Start session response status:', res.status);
+            if (!res.ok) return res.json().then(e => { throw e; });
+            return res.json();
+        })
+        .then(data => {
+            console.log('Start session success:', data);
+            document.getElementById('attendance-section').style.display = 'block';
+            lockControls(activeCourseId, mode);
+            startQRRefresh(activeCourseId);
+            startPollingStudents();
+        })
+        .catch(err => {
+            console.error('Start session error:', err);
+            showPopup('error', 'Start Failed', err.error || 'Network error or server failed.');
+        });
+    }
+
+    function importStudents() {
+        const courseId = document.getElementById('course-select').value;
+        const fileInput = document.getElementById('excel-file');
+        const file = fileInput.files && fileInput.files[0];
+
+        if (!courseId) {
+            showPopup('error', 'Select Course', 'Please select a course before importing.');
+            return;
+        }
+        if (!file) {
+            showPopup('error', 'Select File', 'Please choose an Excel (.xlsx) file first.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('course_id', courseId);
+        formData.append('excel_file', file);
+
+        fetch('/teacher/import-students', {
+            method: 'POST',
+            body: formData
+        })
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok) throw data;
+            return data;
+        })
+        .then(data => {
+            showPopup(
+                'success',
+                'Import Complete',
+                `${data.message} Rows: ${data.rows_read}, New: ${data.created}, Existing: ${data.skipped_existing}, Enrolled: ${data.enrolled_in_course}.`
+            );
+        })
+        .catch(err => {
+            showPopup('error', 'Import Failed', err.error || 'Failed to import Excel file.');
+        });
+    }
+
+    function startPollingStudents() {
+        pollStudents();
+        pollInterval = setInterval(pollStudents, 3000);
+    }
+
+    function pollStudents() {
+        fetch(`/teacher/live-students?course_id=${activeCourseId}`)
+        .then(res => res.json())
+        .then(data => {
+            const container = document.getElementById('student-cards');
             const emptyMsg = document.getElementById('empty-msg');
-            if (emptyMsg) emptyMsg.style.display = 'block';
-        }
-    })
-    .catch(err => {
-        alert('Network error removing student.');
-        console.error(err);
-    });
-}
+            const countEl = document.getElementById('student-count');
 
-/* ── finalize ── */
-function finalizeSession() {
-    if (!confirm('Finalize attendance? Absent students will be marked A.')) return;
-    fetch('/session/finalize', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({course_id: activeCourseId})
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.error) {
-            alert('Error: ' + data.error);
-            return;
-        }
-        alert(data.message);
-        clearInterval(pollInterval);
-        unlockControls();
-        window.location.reload();
-    })
-    .catch(err => {
-        alert('Network error finalizing session.');
-        console.error(err);
-    });
-}
+            countEl.textContent = data.students.length;
+
+            if (data.students.length === 0) {
+                container.querySelectorAll('.student-card').forEach(el => el.remove());
+                if (emptyMsg) emptyMsg.style.display = 'block';
+                return;
+            }
+
+            if (emptyMsg) emptyMsg.style.display = 'none';
+
+            // Very basic diffing: remove all and re-add
+            container.querySelectorAll('.student-card').forEach(el => el.remove());
+
+            data.students.forEach(s => {
+                const card = document.createElement('div');
+                card.className = 'student-card';
+                card.innerHTML = `
+                    <button class="remove-btn" onclick="removeStudent('${s.id}')" title="Remove student">✕</button>
+                    <div class="student-avatar">${s.name.charAt(0).toUpperCase()}</div>
+                    <div class="student-info">
+                        <div class="student-name">${s.name}</div>
+                        <div class="student-roll">${s.roll_number}</div>
+                    </div>
+                    <div class="student-meta">
+                        <span class="student-time">${s.scanned_at}</span>
+                        <div class="status-p">P</div>
+                    </div>`;
+                container.appendChild(card);
+            });
+        });
+    }
+
+    function removeStudent(recordId) {
+        showConfirm('Remove Student', 'Are you sure you want to remove this student?')
+            .then(ok => {
+                if (!ok) return;
+
+                fetch('/teacher/remove-student', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({record_id: recordId})
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        showPopup('error', 'Error', data.error);
+                        return;
+                    }
+                    pollStudents();
+                })
+                .catch(err => console.error('Error removing student:', err));
+            });
+    }
+
+    function finalizeSession() {
+        showConfirm('Finalize Session', 'This will mark all other students as Absent. Proceed?')
+            .then(ok => {
+                if (!ok) return;
+
+                fetch('/session/finalize', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({course_id: activeCourseId})
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        showPopup('error', 'Finalize Failed', data.error);
+                        return;
+                    }
+
+                    if (data.warning) {
+                        console.warn(data.warning);
+                    }
+
+                    // Custom success popup with Download button
+                    const actions = document.createElement('div');
+                    actions.className = 'popup-actions';
+
+                    const refreshBtn = document.createElement('button');
+                    refreshBtn.className = 'popup-btn-cancel';
+                    refreshBtn.textContent = 'Close & Refresh';
+                    refreshBtn.onclick = () => { window.location.reload(); };
+
+                    actions.appendChild(refreshBtn);
+                    if (data.download_url) {
+                        const downloadBtn = document.createElement('button');
+                        downloadBtn.className = 'popup-btn-ok';
+                        downloadBtn.textContent = 'Download Attendance';
+                        downloadBtn.onclick = () => { window.location = data.download_url; };
+                        actions.appendChild(downloadBtn);
+                    }
+
+                    const popupMsg = data.warning ? `${data.message} ${data.warning}` : data.message;
+                    showPopup('success', 'Attendance Finalized', popupMsg, actions);
+                    clearInterval(pollInterval);
+                })
+                .catch(err => {
+                    console.error('Finalize error:', err);
+                    showPopup('error', 'Error', 'Finalization failed due to a network or server error.');
+                });
+            });
+    }
 </script>
 {% endblock %}

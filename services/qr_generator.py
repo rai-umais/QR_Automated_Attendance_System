@@ -11,10 +11,10 @@ def get_base_url():
     # locally it falls back to localhost
     return os.environ.get('APP_BASE_URL', 'http://localhost:5000')
 
-def generate_qr_token(session_id):
+def generate_qr_token(session_id, seconds=30):
     payload = {
         'session_id': session_id,
-        'exp': datetime.now(timezone.utc) + timedelta(seconds=30), # 30 seconds gives a grace period for login/network delays
+        'exp': datetime.now(timezone.utc) + timedelta(seconds=seconds), 
         'iat': datetime.now(timezone.utc)
     }
     token = jwt.encode(

@@ -28,4 +28,30 @@
         </div>
     </div>
 </div>
+    
+    <!-- Global Popup Overlay for index -->
+    <div id="popup-overlay" class="popup-overlay" style="display:none">
+      <div class="popup-box">
+        <div class="popup-icon-wrap" id="popup-icon">❌</div>
+        <h3 class="popup-title" id="popup-title">Login Error</h3>
+        <p class="popup-msg" id="popup-msg"></p>
+        <div class="popup-actions" id="popup-actions">
+            <button class="popup-btn-ok" onclick="document.getElementById('popup-overlay').style.display='none'">OK</button>
+        </div>
+      </div>
+    </div>
+</div>
+
+{% if error %}
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const overlay = document.getElementById('popup-overlay');
+        const msg = document.getElementById('popup-msg');
+        msg.textContent = "{{ error }}";
+        overlay.style.display = 'flex';
+        // Clean URL after showing popup
+        window.history.replaceState({}, document.title, "/");
+    });
+</script>
+{% endif %}
 {% endblock %}

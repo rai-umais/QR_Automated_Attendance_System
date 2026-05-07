@@ -12,7 +12,9 @@ class Session(db.Model):
     started_at   = db.Column(db.DateTime, default=datetime.now(UTC))
     finalized_at = db.Column(db.DateTime, nullable=True)
     status       = db.Column(db.String(10), default='open')
-
+    mode         = db.Column(db.String(10), default='normal', nullable=False)  # 'normal' or 'strict' or 'custom'
+    custom_seconds = db.Column(db.Integer, nullable=True)
+    master_xlsx_path = db.Column(db.String(255), nullable=True)
     temp_records  = db.relationship('TempAttendance', backref='session', lazy=True)
     final_records = db.relationship('Attendance',     backref='session', lazy=True)
 

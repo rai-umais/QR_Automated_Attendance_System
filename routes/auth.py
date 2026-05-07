@@ -1,8 +1,11 @@
 import os
+from datetime import datetime, UTC
 from flask import Blueprint, redirect, url_for, session, request, jsonify
 from models.base import db
 from models.teacher import Teacher
 from models.student import Student
+from models.session import Session
+from models.attendance import TempAttendance
 from authlib.integrations.flask_client import OAuth
 
 
@@ -50,7 +53,7 @@ def callback():
     print("GOOGLE RETURNED EMAIL:", user_info['email'])
     print("="*50 + "\n")
     if not user_info:
-        return jsonify({'error': 'OAuth tokenization failed'}), 400
+        return redirect(url_for('main.index', error='OAuth tokenization failed'))
 
     Email = user_info['email']
     sub = user_info['sub']
@@ -60,7 +63,7 @@ def callback():
     if role == 'Teacher':
         user = Teacher.query.filter_by(email=Email).first()
         if not user:
-            return jsonify({'error': 'You were not registered as a Teacher'}), 403
+            return redirect(url_for('main.index', error='You were not registered as a Teacher'))
         if not user.google_sub:
             user.google_sub = sub
             db.session.commit()
@@ -72,7 +75,7 @@ def callback():
     elif role == 'Student':
         user = Student.query.filter_by(email=Email).first()
         if not user:
-            return jsonify({'error': 'You are not a registered student'}), 403
+            return redirect(url_for('main.index', error='You are not a registered student'))
         if not user.google_sub:
             user.google_sub = sub
             db.session.commit()
@@ -85,9 +88,20 @@ def callback():
             return redirect(url_for('student.scan_page', token=qr_token))
         return redirect(url_for('student.scan_page'))
     
-    return jsonify({'error': 'Invalid role'}), 400
+    return redirect(url_for('main.index', error='Invalid role'))
     
 @auth_bp.route('/logout')
 def logout():
+    # Ensure teacher signout does not leave open sessions behind.
+    user_role = session.get('user_role')
+    user_id = session.get('user_id')
+    if user_role == 'Teacher' and user_id:
+        open_sessions = Session.query.filter_by(teacher_id=user_id, status='open').all()
+        for s in open_sessions:
+            TempAttendance.query.filter_by(session_id=s.id).delete()
+            s.status = 'closed'
+            s.finalized_at = datetime.now(UTC)
     session.clear()
+    if user_role == 'Teacher' and user_id:
+        db.session.commit()
     return redirect(url_for('main.index'))
